@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.env
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Node / frontend
+node_modules/
+web/dist/
+*.local
+
+# Local data
+photos/
+*.duckdb
+*.duckdb.wal
+var/
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+
+# Private notes — strategy, secrets, anything not for the public repo
+.notes/
