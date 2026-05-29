@@ -87,4 +87,13 @@ def test_health_endpoint(client: TestClient):
     assert resp.status_code == 200
     body = resp.json()
     assert body["status"] == "ok"
-    assert body["version"] == "1.0.0"
+    assert body["version"] == "1.0.1"
+
+
+def test_health_deep_reports_db_ok(client):
+    r = client.get("/api/health/deep")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["status"] == "ok"
+    assert body["db"]["ok"] is True
+    assert body["db"]["error"] is None

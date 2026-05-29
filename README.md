@@ -7,13 +7,24 @@
 </p>
 
 <p align="center">
-  <i>🚧 Building in public. Follow along — releases land in stages (see the <a href="ROADMAP.md">roadmap</a>).</i>
+  <a href="https://github.com/pb-commits-it/whorl/releases/tag/v1.0"><img src="https://img.shields.io/badge/release-v1.0-38bdf8" alt="v1.0"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-7137bd" alt="AGPL-3.0"></a>
+  <a href="https://github.com/pb-commits-it/whorl/actions"><img src="https://img.shields.io/github/actions/workflow/status/pb-commits-it/whorl/ci.yml?branch=main" alt="CI"></a>
+  <img src="https://img.shields.io/badge/python-3.11%20%7C%203.12-blue" alt="python 3.11/3.12">
 </p>
 
 <p align="center">
-  <img src="docs/v0.1.png" alt="whorl v0.1 — drop a field photo, get a pest identification" width="820">
+  <i>v1.0 shipped 2026-05-29 — the full 0.1 → 1.0 arc is live. See <a href="CHANGELOG.md">CHANGELOG</a> · <a href="ROADMAP.md">ROADMAP</a>.</i>
 </p>
-<p align="center"><sub>v0.1 — drop a field photo, get a structured pest identification with confidence and lifecycle stage. Recommendations + citations land in v0.3.</sub></p>
+
+```
+photo  →  Helicoverpa zea (corn earworm) · larva                            95%
+id     →  treat · Spinosad (IRAC 5) · REI 4 h · PHI 1 d
+why    →  rotating off IRAC 3A bifenthrin 14 d ago · KSU MF743 p.12
+also   →  Bt-kurstaki (biological), early planting (cultural)
+when   →  don't spray Thursday — winds 18 mph (≥15 → drift risk)
+done   →  scout complete · 8.5 s
+```
 
 ---
 
@@ -51,9 +62,38 @@ See [`ROADMAP.md`](ROADMAP.md) for the staged release plan.
 - **Frontend**: React + Vite + TypeScript
 - **License**: AGPL-3.0
 
+## Try it locally
+
+```bash
+git clone https://github.com/pb-commits-it/whorl
+cd whorl
+python3.12 -m venv .venv && .venv/bin/pip install -e ".[dev]"
+docker compose -f deploy/docker-compose.yml up -d              # pgvector on 127.0.0.1:5433
+cd web && npm install && npm run build && cd ..
+cp .env.example .env                                            # add your OPENROUTER_API_KEY
+.venv/bin/whorl kb ingest                                       # load the wiki
+.venv/bin/python scripts/seed_demo.py                           # demo@whorl.app + sample scout
+.venv/bin/whorl up --port 8011                                  # open http://127.0.0.1:8011
+```
+
+## Deploy to your own VPS
+
+A single idempotent installer brings up the full stack on a fresh Ubuntu / Debian box:
+
+```bash
+git clone https://github.com/pb-commits-it/whorl /opt/whorl
+cd /opt/whorl && sudo bash deploy/install.sh
+```
+
+This provisions Python 3.12 + Node + Docker + Caddy + restic, creates the `whorl` service user, materializes `/var/lib/whorl/{photos,pg,backups}`, brings up pgvector via `docker compose`, ingests the wiki KB, and enables four systemd units (app, daily 04:00 weather sync, nightly 03:00 restic→B2 backup). TLS lands automatically via Caddy + Let's Encrypt for `whorl.app` (marketing) and `app.whorl.app` (dashboard). Edit `.env` with `OPENROUTER_API_KEY` + `JWT_SECRET` + B2 creds, then `systemctl restart whorl`. See [`deploy/`](deploy/) for the Caddyfile + systemd units.
+
+## Contributing
+
+Bug reports + PRs welcome — see [`CONTRIBUTING.md`](CONTRIBUTING.md). The KB wiki under `whorl/kb/wiki/` is the highest-leverage place to PR: every page is human-readable markdown an extension entomologist or weed scientist can review and improve.
+
 ## Built by
 
-[Paul Bergeron](https://github.com/pb-commits-it) — PhD ecology / entomology / agriculture, then a pivot into AI / agent-infrastructure engineering.
+[Paul Bergeron](https://github.com/pb-commits-it) — PhD ecology / entomology / agriculture, then a pivot into AI / agent-infrastructure engineering. Based in Wichita, KS.
 
 ## License
 
