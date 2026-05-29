@@ -10,13 +10,26 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
+    # OpenRouter (vision + reasoning)
     openrouter_api_key: str = ""
     openrouter_vision_model: str = "qwen/qwen3-vl-30b-a3b-instruct"
     openrouter_fallback_model: str = "google/gemini-2.5-flash"
 
+    # Local layout
     whorl_dev_auth: bool = True
     whorl_photo_dir: Path = Path("./photos")
-    whorl_port: int = 8010
+    whorl_port: int = 8011
+
+    # DB — Postgres in dev/prod, aiosqlite in tests
+    database_url: str = "postgresql+asyncpg://whorl:whorl@127.0.0.1:5433/whorl"
+
+    # Auth
+    jwt_secret: str = "dev-secret-change-me-please-32-chars-long"
+    jwt_lifetime_days: int = 30
+    magic_link_ttl_minutes: int = 15
+
+    # Public-facing base URL for magic links
+    base_url: str = "http://127.0.0.1:8011"
 
 
 def get_settings() -> Settings:

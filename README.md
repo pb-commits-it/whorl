@@ -32,8 +32,8 @@ A farmer or independent crop consultant drops a phone photo of a pest, disease, 
 
 | Tag | Name | Status |
 |---|---|---|
-| **v0.1** | *It identifies* | 🚧 in progress |
-| **v0.2** | *It knows the field* | planned |
+| **v0.1** | *It identifies* | ✅ shipped |
+| **v0.2** | *It knows the field* | ✅ shipped |
 | **v0.3** | *It recommends* | planned |
 | **v0.4** | *It watches the sky* | planned |
 | **v0.5** | *It streams live* | planned |

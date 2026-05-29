@@ -1,11 +1,18 @@
-"""POST /api/photos — multipart photo upload + vision pass."""
+"""POST /api/photos — upload to an existing scout, run vision, persist identifications."""
 
 from __future__ import annotations
 
 from datetime import date
+from typing import Annotated
+from uuid import UUID
 
-from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from whorl.auth import current_user
+from whorl.db import get_session
+from whorl.models import Farm, Field, Identification, Photo, Scout, User
 from whorl.pipeline.vision import identify
 from whorl.schemas.photo import PhotoUploadResponse
 
@@ -17,10 +24,27 @@ ALLOWED_EXTS = {"jpg", "jpeg", "png", "webp"}
 @router.post("/api/photos", response_model=PhotoUploadResponse)
 async def upload_photo(
     request: Request,
-    file: UploadFile = File(...),
-    crop: str | None = Form(default=None),
-    state: str | None = Form(default=None),
+    user: Annotated[User, Depends(current_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+    scout_id: Annotated[UUID, Form(...)],
+    file: Annotated[UploadFile, File(...)],
+    crop: Annotated[str | None, Form()] = None,
+    state: Annotated[str | None, Form()] = None,
 ) -> PhotoUploadResponse:
+    # Authz: scout must belong to a field in this user's org.
+    scout = (
+        await session.execute(
+            select(Scout).join(Field, Scout.field_id == Field.id)
+            .join(Farm, Field.farm_id == Farm.id)
+            .where(Scout.id == scout_id, Farm.org_id == user.org_id)
+        )
+    ).scalar_one_or_none()
+    if scout is None:
+        raise HTTPException(status_code=404, detail="scout not found")
+    field = (
+        await session.execute(select(Field).where(Field.id == scout.field_id))
+    ).scalar_one()
+
     data = await file.read()
     if not data:
         raise HTTPException(status_code=400, detail="empty file")
@@ -30,18 +54,38 @@ async def upload_photo(
 
     store = request.app.state.photo_store
     settings = request.app.state.settings
-    stored = store.put(data, ext)
+    stored = store.put(data, ext, org_id=str(user.org_id))
 
     result, model_used = await identify(
-        stored.thumb_path,
-        settings,
-        crop=crop,
-        state=state,
-        date_iso=date.today().isoformat(),
+        stored.thumb_path, settings,
+        crop=crop or field.crop, state=state, date_iso=date.today().isoformat(),
     )
 
+    photo = Photo(
+        scout_id=scout.id, storage_path=stored.path, thumb_path=stored.thumb_path,
+        sha256=stored.sha256, width=stored.width, height=stored.height, bytes=stored.bytes_,
+    )
+    session.add(photo)
+    await session.flush()
+
+    for rank, c in enumerate(result.candidates, start=1):
+        session.add(Identification(
+            photo_id=photo.id,
+            rank=rank,
+            taxon_scientific=c.scientific_name,
+            taxon_common=c.common_name,
+            lifecycle_stage=c.lifecycle_stage,
+            confidence=c.confidence,
+            features=c.visible_features,
+            evidence=c.evidence,
+            image_quality=result.image_quality,
+            notes=result.notes,
+            model_used=model_used,
+        ))
+    await session.commit()
+
     return PhotoUploadResponse(
-        photo_id=stored.photo_id,
+        photo_id=str(photo.id),
         stored_path=stored.path,
         thumb_path=stored.thumb_path,
         sha256=stored.sha256,
