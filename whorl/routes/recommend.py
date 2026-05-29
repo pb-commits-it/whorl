@@ -62,6 +62,7 @@ async def make_recommendation(
 ) -> RecommendationResponse:
     scout = await _authz_scout(session, scout_id, user.org_id)
     settings = request.app.state.settings
+    hub = request.app.state.hub
 
     try:
         result, model_used, latency_ms = await generate_recommendation(
@@ -95,6 +96,19 @@ async def make_recommendation(
     scout.summary = result.pest_focus
     await session.commit()
     await session.refresh(rec)
+
+    await hub.publish("recommendation_ready", {
+        "scout_id": str(scout_id),
+        "recommendation_id": str(rec.id),
+        "action": result.action,
+        "pest_focus": result.pest_focus,
+        "confidence": result.confidence,
+    })
+    await hub.publish("scout_complete", {
+        "scout_id": str(scout_id),
+        "summary": result.pest_focus,
+        "latency_ms": latency_ms,
+    })
 
     return RecommendationResponse(
         id=str(rec.id),

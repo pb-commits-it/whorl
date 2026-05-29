@@ -98,3 +98,40 @@ def test_scout_create_rejects_field_from_other_org(client: TestClient):
     client.get(f"/api/auth/verify?token={token}")
     resp = client.post("/api/scouts", json={"field_id": field["id"]})
     assert resp.status_code == 404
+
+
+def test_patch_field_sets_centroid(auth_client):
+    f = auth_client.post("/api/farms", json={"name": "F"}).json()
+    field = auth_client.post(
+        f"/api/farms/{f['id']}/fields", json={"name": "N80", "crop": "corn"},
+    ).json()
+    assert field["centroid_lat"] is None
+    r = auth_client.patch(
+        f"/api/fields/{field['id']}",
+        json={"centroid_lat": 39.2050, "centroid_lon": -96.5847},
+    )
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["centroid_lat"] == 39.2050
+    assert body["centroid_lon"] == -96.5847
+    # other fields preserved
+    assert body["crop"] == "corn"
+    assert body["name"] == "N80"
+
+
+def test_patch_field_other_org_is_404(auth_client, client):
+    # Create field in org A
+    f = auth_client.post("/api/farms", json={"name": "F"}).json()
+    field = auth_client.post(
+        f"/api/farms/{f['id']}/fields", json={"name": "N", "crop": "corn"},
+    ).json()
+    # Sign up a second org via the unauth client
+    r = client.post(
+        "/api/auth/magic",
+        json={"email": "other@x", "org_type": "farmer", "name": "B"},
+    )
+    token = r.json()["dev_link"].split("token=", 1)[1]
+    client.get(f"/api/auth/verify?token={token}")
+    # Org B shouldn't see Org A's field
+    r = client.patch(f"/api/fields/{field['id']}", json={"centroid_lat": 0})
+    assert r.status_code == 404

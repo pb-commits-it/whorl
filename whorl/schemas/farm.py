@@ -43,3 +43,15 @@ class FieldResponse(BaseModel):
     centroid_lon: float | None
     planting_date: date | None
     variety: str | None
+
+
+class FieldUpdate(BaseModel):
+    """Partial update — only fields present are applied."""
+
+    name: str | None = None
+    crop: str | None = None
+    acres: float | None = None
+    centroid_lat: float | None = None
+    centroid_lon: float | None = None
+    planting_date: date | None = None
+    variety: str | None = None

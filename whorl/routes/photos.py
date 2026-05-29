@@ -54,7 +54,14 @@ async def upload_photo(
 
     store = request.app.state.photo_store
     settings = request.app.state.settings
+    hub = request.app.state.hub
     stored = store.put(data, ext, org_id=str(user.org_id))
+
+    await hub.publish("photo_uploaded", {
+        "scout_id": str(scout.id),
+        "thumb_path": stored.thumb_path,
+        "sha256": stored.sha256,
+    })
 
     result, model_used = await identify(
         stored.thumb_path, settings,
@@ -83,6 +90,23 @@ async def upload_photo(
             model_used=model_used,
         ))
     await session.commit()
+
+    # Confidence flag (v0.5): top candidate < 0.55 → recommender will pivot to
+    # scout_again; < 0.75 → low-confidence yellow border in the UI.
+    top_conf = result.candidates[0].confidence if result.candidates else 0.0
+    low_confidence = top_conf < 0.75
+    needs_rescout = top_conf < 0.55 or not result.candidates
+
+    await hub.publish("id_ready", {
+        "scout_id": str(scout.id),
+        "photo_id": str(photo.id),
+        "thumb_path": stored.thumb_path,
+        "candidates": [c.model_dump() for c in result.candidates],
+        "image_quality": result.image_quality,
+        "top_confidence": top_conf,
+        "low_confidence": low_confidence,
+        "needs_rescout": needs_rescout,
+    })
 
     return PhotoUploadResponse(
         photo_id=str(photo.id),

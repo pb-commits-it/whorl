@@ -1,9 +1,13 @@
 """Weather caching service + spray-window analysis.
 
-Routing rule (v0.4):
-- All US: NWS for canonical daily highs/lows
-- Everywhere: OpenMeteo for finer wind + sub-daily precip-probability detail
-- v0.5: add Kansas Mesonet as primary obs source within 25 km of a KS station.
+Routing rule (v0.5):
+- KS fields within 25 km of a Mesonet station: Mesonet provides today's
+  ground-truth observation (preferred for "is the wind blowing right now?").
+- All US: NWS for canonical daily highs/lows.
+- Everywhere: OpenMeteo for finer wind + sub-daily precip-probability detail.
+
+The classifier in `spray_windows()` already merges per-date rows across
+providers; Mesonet's daily row simply joins the pool with priority for *today*.
 """
 
 from __future__ import annotations
@@ -20,8 +24,10 @@ from whorl.models import Field, FieldWeather
 from whorl.models._common import now_utc
 from whorl.weather.providers import (
     DailyForecast,
+    MesonetProvider,
     NWSProvider,
     OpenMeteoProvider,
+    nearest_mesonet_station,
 )
 
 if TYPE_CHECKING:
@@ -111,7 +117,10 @@ async def fetch_and_cache(
     lat = field.centroid_lat or DEFAULT_LAT
     lon = field.centroid_lon or DEFAULT_LON
 
-    providers = [NWSProvider(), OpenMeteoProvider()]
+    providers: list = [NWSProvider(), OpenMeteoProvider()]
+    if nearest_mesonet_station(lat, lon) is not None:
+        # In range of a KSU Mesonet station: add it as ground-truth today.
+        providers.append(MesonetProvider())
     new_forecasts: list[DailyForecast] = []
     for p in providers:
         try:
@@ -170,8 +179,10 @@ def _classify(wind_mph: float | None, rain_pct: float | None) -> tuple[str, str]
 def spray_windows(rows: list[FieldWeather], *, days: int = 7) -> list[SprayWindow]:
     """Reduce stored rows → one classification per upcoming date.
 
-    For each date, prefer OpenMeteo's wind + rain_probability when present
-    (sub-daily detail, better calibrated for short windows); fall back to NWS.
+    Provider preference order, highest first:
+      1. Mesonet (ground-truth observation — only for today)
+      2. OpenMeteo (sub-daily wind + rain probability detail)
+      3. NWS (canonical US daily forecast)
     """
     today = now_utc().date()
     by_date_provider: dict[tuple, FieldWeather] = {(r.date, r.provider): r for r in rows}
@@ -179,13 +190,25 @@ def spray_windows(rows: list[FieldWeather], *, days: int = 7) -> list[SprayWindo
 
     windows: list[SprayWindow] = []
     for d in dates:
+        meso = by_date_provider.get((d, "Mesonet")) if d == today else None
         om = by_date_provider.get((d, "OpenMeteo"))
         nws = by_date_provider.get((d, "NWS"))
-        wind = (om.wind_mph if om and om.wind_mph is not None else
-                nws.wind_mph if nws else None)
-        rain = (om.rain_probability if om and om.rain_probability is not None else
-                nws.rain_probability if nws else None)
+
+        def pick(field: str):
+            for src in (meso, om, nws):
+                if src is None:
+                    continue
+                v = getattr(src, field, None)
+                if v is not None:
+                    return v
+            return None
+
+        wind = pick("wind_mph")
+        rain = pick("rain_probability")
         label, reason = _classify(wind, rain)
+        if meso is not None:
+            station = (meso.raw or {}).get("station_label") or "Mesonet"
+            reason = f"{reason} · {station} obs"
         windows.append(SprayWindow(
             date=d.isoformat(),
             label=label,

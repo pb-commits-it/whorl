@@ -21,6 +21,41 @@ from whorl.pipeline.vision import OPENROUTER_URL
 from whorl.schemas.recommend import RecommendationResult
 from whorl.weather.service import forecast_for_field, spray_windows
 
+
+def _low_confidence_rescout(
+    top: Identification, field: Field,
+) -> RecommendationResult:
+    """Build a deterministic scout_again recommendation when ID confidence is too low.
+
+    No LLM call — we know it would refuse to act on the data either way; the
+    user is better served by concrete next-photo guidance.
+    """
+    taxon = top.taxon_scientific or "the organism in the photo"
+    common = f" ({top.taxon_common})" if top.taxon_common else ""
+    stage = top.lifecycle_stage or "unknown"
+    plain = (
+        f"The top identification — {taxon}{common} at {stage} stage — came back "
+        f"at {float(top.confidence) * 100:.0f}% confidence, below the 55% "
+        f"threshold for ship-ready recommendations on a {field.crop} field. "
+        f"Take two follow-up photos: one tighter shot (organism filling the "
+        f"frame, in focus, natural light) and one wider shot showing the host "
+        f"plant and damage pattern. Re-upload and the recommender will retry."
+    )
+    return RecommendationResult(
+        action="scout_again",
+        pest_focus=taxon,
+        threshold_context=(
+            f"Top candidate confidence {float(top.confidence):.2f} < 0.55 "
+            f"scout-again threshold."
+        ),
+        spray_window=None,
+        chemical=None,
+        alternatives=[],
+        plain_english=plain,
+        confidence="low",
+        citations=[],
+    )
+
 if TYPE_CHECKING:
     from whorl.config import Settings
 
@@ -222,6 +257,12 @@ async def generate_recommendation(
 
     top = all_ids[0]
     top_pest_slug = top.taxon_scientific.lower().replace(" ", "-")
+
+    # v0.5 — confidence gate. If the top ID is below 0.55 we don't burn an LLM
+    # call on a recommendation we'd refuse to ship; we short-circuit to a
+    # scout_again recommendation with concrete next-photo guidance.
+    if top.confidence is not None and float(top.confidence) < 0.55:
+        return _low_confidence_rescout(top, field), "rescout-fallback", 0
     query_text = (
         f"{top.taxon_scientific} ({top.taxon_common or ''}) on {field.crop} "
         f"at {top.lifecycle_stage} stage — economic threshold, recommended "

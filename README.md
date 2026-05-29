@@ -36,7 +36,7 @@ A farmer or independent crop consultant drops a phone photo of a pest, disease, 
 | **v0.2** | *It knows the field* | ✅ shipped |
 | **v0.3** | *It recommends* | ✅ shipped |
 | **v0.4** | *It watches the sky* | ✅ shipped |
-| **v0.5** | *It streams live* | planned |
+| **v0.5** | *It streams live* | ✅ shipped |
 | **v1.0** | *Launch* | planned |
 
 See [`ROADMAP.md`](ROADMAP.md) for the staged release plan.

@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import maplibregl from "maplibre-gl";
+import "maplibre-gl/dist/maplibre-gl.css";
 import {
   api,
   type AltControl,
@@ -12,7 +14,43 @@ import {
   type RecResult,
   type Scout,
   type ScoutDetail,
+  type StreamIdReady,
+  type StreamPhotoUploaded,
+  type StreamRecommendationReady,
+  type StreamScoutComplete,
 } from "./api";
+
+// v0.5 — server-sent events: per-scout live progress feed. Cleans up on
+// unmount or when scoutId changes. Auto-reconnects on disconnect.
+type SSEHandlers = {
+  onPhotoUploaded?: (e: StreamPhotoUploaded) => void;
+  onIdReady?: (e: StreamIdReady) => void;
+  onRecommendationReady?: (e: StreamRecommendationReady) => void;
+  onScoutComplete?: (e: StreamScoutComplete) => void;
+  onConnected?: () => void;
+  onError?: () => void;
+};
+function useScoutStream(scoutId: string | null, handlers: SSEHandlers) {
+  const handlersRef = useRef(handlers);
+  handlersRef.current = handlers;
+
+  useEffect(() => {
+    if (!scoutId) return;
+    const url = `/api/stream/scouts/${scoutId}`;
+    const es = new EventSource(url, { withCredentials: true });
+    const on = (name: string, fn: (data: unknown) => void) =>
+      es.addEventListener(name, (ev) => {
+        try { fn(JSON.parse((ev as MessageEvent).data)); } catch { /* ignore */ }
+      });
+    on("connected", () => handlersRef.current.onConnected?.());
+    on("photo_uploaded", (d) => handlersRef.current.onPhotoUploaded?.(d as StreamPhotoUploaded));
+    on("id_ready",       (d) => handlersRef.current.onIdReady?.(d as StreamIdReady));
+    on("recommendation_ready", (d) => handlersRef.current.onRecommendationReady?.(d as StreamRecommendationReady));
+    on("scout_complete", (d) => handlersRef.current.onScoutComplete?.(d as StreamScoutComplete));
+    es.onerror = () => handlersRef.current.onError?.();
+    return () => es.close();
+  }, [scoutId]);
+}
 
 interface Props {
   me: Me;
@@ -266,6 +304,8 @@ function FieldView(p: FieldViewProps) {
         <button className="primary" onClick={p.onStartScout}>+ new scout</button>
       </div>
 
+      <FieldMap field={p.field} />
+
       <WeatherStrip field={p.field} />
 
       <ApplicationsPanel
@@ -304,6 +344,113 @@ function FieldView(p: FieldViewProps) {
         />
       )}
     </div>
+  );
+}
+
+function FieldMap({ field }: { field: Field }) {
+  // v0.5 MapLibre. OSM raster tiles (no API key, attribution required).
+  // Click to set the field's centroid; PATCH /api/fields/:id persists it.
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const mapRef = useRef<maplibregl.Map | null>(null);
+  const markerRef = useRef<maplibregl.Marker | null>(null);
+  const [lat, setLat] = useState<number | null>(field.centroid_lat ?? null);
+  const [lon, setLon] = useState<number | null>(field.centroid_lon ?? null);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const startLat = field.centroid_lat ?? 38.5266;
+    const startLon = field.centroid_lon ?? -97.5777;
+    const map = new maplibregl.Map({
+      container: containerRef.current,
+      style: {
+        version: 8,
+        sources: {
+          osm: {
+            type: "raster",
+            tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+            tileSize: 256,
+            attribution: "© OpenStreetMap contributors",
+            maxzoom: 19,
+          },
+        },
+        layers: [{ id: "osm", type: "raster", source: "osm" }],
+      },
+      center: [startLon, startLat],
+      zoom: field.centroid_lat ? 13 : 6,
+    });
+    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
+    map.addControl(new maplibregl.AttributionControl({ compact: true }));
+    mapRef.current = map;
+
+    if (field.centroid_lat != null && field.centroid_lon != null) {
+      markerRef.current = new maplibregl.Marker({ color: "#38bdf8" })
+        .setLngLat([field.centroid_lon, field.centroid_lat])
+        .addTo(map);
+    }
+
+    map.on("click", (e) => {
+      const { lng, lat: clat } = e.lngLat;
+      setLat(clat);
+      setLon(lng);
+      setSaved(false);
+      if (markerRef.current) {
+        markerRef.current.setLngLat([lng, clat]);
+      } else {
+        markerRef.current = new maplibregl.Marker({ color: "#38bdf8" })
+          .setLngLat([lng, clat])
+          .addTo(map);
+      }
+    });
+
+    return () => {
+      map.remove();
+      mapRef.current = null;
+      markerRef.current = null;
+    };
+    // We intentionally rebuild the map when switching fields.
+  }, [field.id]);
+
+  async function save() {
+    if (lat == null || lon == null) return;
+    setSaving(true);
+    setSaved(false);
+    try {
+      await api.patch(`/api/fields/${field.id}`, {
+        centroid_lat: lat,
+        centroid_lon: lon,
+      });
+      setSaved(true);
+    } catch {
+      // surface via existing error path; map UX recovers on next click
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const dirty =
+    lat != null && lon != null &&
+    (lat !== field.centroid_lat || lon !== field.centroid_lon);
+
+  return (
+    <section className="field-map-wrap">
+      <div className="field-map-head">
+        <h2>field location</h2>
+        <div className="muted small">
+          {lat != null && lon != null
+            ? `${lat.toFixed(4)}, ${lon.toFixed(4)}`
+            : "click the map to set this field's centroid"}
+          {dirty && (
+            <button className="primary small" onClick={save} disabled={saving}>
+              {saving ? "saving…" : "save centroid"}
+            </button>
+          )}
+          {saved && !dirty && <span className="ok">✓ saved</span>}
+        </div>
+      </div>
+      <div className="field-map" ref={containerRef} />
+    </section>
   );
 }
 
@@ -621,6 +768,42 @@ function ScoutPane({ scoutId, field, detail, recommendation, onRecommendation, o
   const [recBusy, setRecBusy] = useState(false);
   const [recErr, setRecErr] = useState<string | null>(null);
 
+  // v0.5 live event log — appears above the photo grid as IDs stream in.
+  const [liveEvents, setLiveEvents] = useState<Array<
+    { kind: "uploaded"; at: number; thumb: string }
+    | { kind: "id"; at: number; pest: string; common: string; stage: string; conf: number; lowConf: boolean; needsRescout: boolean }
+    | { kind: "rec"; at: number; action: string; pest: string }
+    | { kind: "done"; at: number; latencyMs: number }
+  >>([]);
+  const [streamStatus, setStreamStatus] = useState<"connecting" | "live" | "lost">("connecting");
+
+  useScoutStream(scoutId, {
+    onConnected: () => setStreamStatus("live"),
+    onError: () => setStreamStatus("lost"),
+    onPhotoUploaded: (e) => {
+      setLiveEvents((prev) => [...prev, { kind: "uploaded", at: Date.now(), thumb: e.thumb_path }]);
+    },
+    onIdReady: (e) => {
+      const c = e.candidates[0];
+      setLiveEvents((prev) => [...prev, {
+        kind: "id", at: Date.now(),
+        pest: c?.scientific_name ?? "(no candidate)",
+        common: c?.common_name ?? "",
+        stage: c?.lifecycle_stage ?? "",
+        conf: e.top_confidence,
+        lowConf: e.low_confidence,
+        needsRescout: e.needs_rescout,
+      }]);
+      onPhotoAdded(); // refresh ScoutDetail too
+    },
+    onRecommendationReady: (e) => {
+      setLiveEvents((prev) => [...prev, { kind: "rec", at: Date.now(), action: e.action, pest: e.pest_focus }]);
+    },
+    onScoutComplete: (e) => {
+      setLiveEvents((prev) => [...prev, { kind: "done", at: Date.now(), latencyMs: e.latency_ms }]);
+    },
+  });
+
   async function generate() {
     setRecBusy(true);
     setRecErr(null);
@@ -636,8 +819,12 @@ function ScoutPane({ scoutId, field, detail, recommendation, onRecommendation, o
 
   return (
     <section className="scout-pane">
-      <h2>scout · {scoutId.slice(0, 8)}</h2>
+      <h2>
+        scout · {scoutId.slice(0, 8)}
+        <span className={`stream-dot ${streamStatus}`} title={`stream ${streamStatus}`}>●</span>
+      </h2>
       <Uploader scoutId={scoutId} field={field} onAdded={onPhotoAdded} />
+      {liveEvents.length > 0 && <LiveEventLog events={liveEvents} />}
       {detail && <ScoutPhotos photos={detail.photos} />}
       {hasIdentifications && !recommendation && (
         <div className="reco-cta">
@@ -655,52 +842,112 @@ function ScoutPane({ scoutId, field, detail, recommendation, onRecommendation, o
   );
 }
 
+function LiveEventLog({ events }: { events: Array<
+  | { kind: "uploaded"; at: number; thumb: string }
+  | { kind: "id"; at: number; pest: string; common: string; stage: string; conf: number; lowConf: boolean; needsRescout: boolean }
+  | { kind: "rec"; at: number; action: string; pest: string }
+  | { kind: "done"; at: number; latencyMs: number }
+> }) {
+  return (
+    <ul className="live-log">
+      {events.map((e, i) => {
+        if (e.kind === "uploaded") {
+          return <li key={i} className="ev uploaded"><span className="ev-tag">photo</span> uploaded</li>;
+        }
+        if (e.kind === "id") {
+          const cls = e.needsRescout ? "ev id needs-rescout" : e.lowConf ? "ev id low-conf" : "ev id";
+          return (
+            <li key={i} className={cls}>
+              <span className="ev-tag">id</span>
+              <b>{e.pest}</b>
+              {e.common && <span className="muted"> ({e.common})</span>}
+              {e.stage && <span className="muted"> · {e.stage}</span>}
+              <span className="conf">{(e.conf * 100).toFixed(0)}%</span>
+              {e.needsRescout && <span className="badge rescout">needs rescout</span>}
+              {!e.needsRescout && e.lowConf && <span className="badge lowconf">low confidence</span>}
+            </li>
+          );
+        }
+        if (e.kind === "rec") {
+          return (
+            <li key={i} className="ev rec">
+              <span className="ev-tag">rec</span>
+              <b>{e.action}</b> · {e.pest}
+            </li>
+          );
+        }
+        return (
+          <li key={i} className="ev done">
+            <span className="ev-tag">done</span>
+            scout complete · {(e.latencyMs / 1000).toFixed(1)}s
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 function Uploader({ scoutId, field, onAdded }: { scoutId: string; field: Field; onAdded: () => void }) {
-  const [busy, setBusy] = useState(false);
+  // v0.5: multi-file upload. Each photo is POSTed in parallel; UI shows a
+  // running counter so the dropzone makes sense for a 4-photo scout.
+  const [inFlight, setInFlight] = useState(0);
+  const [done, setDone] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
-  async function send(file: File) {
-    setBusy(true);
-    setError(null);
+  async function sendOne(file: File) {
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("scout_id", scoutId);
+    if (field.crop) fd.append("crop", field.crop);
     try {
-      const fd = new FormData();
-      fd.append("file", file);
-      fd.append("scout_id", scoutId);
-      if (field.crop) fd.append("crop", field.crop);
       await api.post("/api/photos", fd);
       onAdded();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
+      throw e;
     }
   }
 
+  async function sendMany(files: FileList | File[]) {
+    const list = Array.from(files);
+    if (list.length === 0) return;
+    setError(null);
+    setInFlight((n) => n + list.length);
+    setDone(0);
+    await Promise.allSettled(list.map((f) =>
+      sendOne(f).finally(() => setDone((d) => d + 1)),
+    ));
+    setInFlight((n) => Math.max(0, n - list.length));
+  }
+
+  const busy = inFlight > 0;
   return (
     <div
       className={`drop ${busy ? "busy" : ""}`}
       onDragOver={(e) => e.preventDefault()}
       onDrop={(e) => {
         e.preventDefault();
-        const f = e.dataTransfer.files?.[0];
-        if (f) send(f);
+        if (e.dataTransfer.files?.length) sendMany(e.dataTransfer.files);
       }}
     >
       <div className="hint">
-        <b>Drop a field photo</b>
+        <b>Drop field photos</b>
         <label className="picker">
-          {" or pick a file"}
+          {" or pick files"}
           <input
             type="file"
             accept="image/jpeg,image/png,image/webp"
+            multiple
             onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) send(f);
+              if (e.target.files?.length) sendMany(e.target.files);
+              e.target.value = "";
             }}
           />
         </label>
       </div>
-      {busy && <div className="status">analyzing…</div>}
+      {busy && (
+        <div className="status">analyzing… {done}/{inFlight}</div>
+      )}
       {error && <div className="error">{error}</div>}
     </div>
   );

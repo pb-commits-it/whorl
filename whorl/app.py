@@ -22,8 +22,10 @@ from whorl.routes import me as me_routes
 from whorl.routes import photos as photo_routes
 from whorl.routes import recommend as recommend_routes
 from whorl.routes import scouts as scout_routes
+from whorl.routes import stream as stream_routes
 from whorl.routes import weather as weather_routes
 from whorl.storage.photos import LocalDiskStore
+from whorl.stream.hub import LiveHub
 
 _PKG = Path(__file__).parent
 WEB_DIR = _PKG / "web"
@@ -78,6 +80,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app = FastAPI(title="whorl", version=__version__, lifespan=lifespan)
     app.state.settings = settings
     app.state.photo_store = LocalDiskStore(settings.whorl_photo_dir)
+    app.state.hub = LiveHub()
 
     app.include_router(health_routes.router)
     app.include_router(auth_routes.router)
@@ -88,6 +91,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(application_routes.router)
     app.include_router(recommend_routes.router)
     app.include_router(weather_routes.router)
+    app.include_router(stream_routes.router)
 
     assets_dir = WEB_DIR / "assets"
     if assets_dir.is_dir():

@@ -12,7 +12,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from whorl.auth import current_user
 from whorl.db import get_session
 from whorl.models import Farm, Field, User
-from whorl.schemas.farm import FarmCreate, FarmResponse, FieldCreate, FieldResponse
+from whorl.schemas.farm import (
+    FarmCreate,
+    FarmResponse,
+    FieldCreate,
+    FieldResponse,
+    FieldUpdate,
+)
 
 router = APIRouter()
 
@@ -102,6 +108,29 @@ async def create_field(
         planting_date=body.planting_date, variety=body.variety,
     )
     session.add(field)
+    await session.commit()
+    await session.refresh(field)
+    return _field_to_response(field)
+
+
+@router.patch("/api/fields/{field_id}", response_model=FieldResponse)
+async def update_field(
+    field_id: UUID,
+    body: FieldUpdate,
+    user: Annotated[User, Depends(current_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> FieldResponse:
+    """Partial update — used by the v0.5 map to set a field's centroid."""
+    field = (await session.execute(
+        select(Field).join(Farm, Field.farm_id == Farm.id)
+        .where(Field.id == field_id, Farm.org_id == user.org_id)
+    )).scalar_one_or_none()
+    if field is None:
+        raise HTTPException(status_code=404, detail="field not found")
+
+    updates = body.model_dump(exclude_unset=True)
+    for key, value in updates.items():
+        setattr(field, key, value)
     await session.commit()
     await session.refresh(field)
     return _field_to_response(field)

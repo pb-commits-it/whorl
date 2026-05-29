@@ -40,11 +40,14 @@ The pipe end to end.
 
 *Exit met: scouting a corn-earworm photo on a 14-day-old IRAC 3A field, in current central-KS conditions (6 of 7 days "poor" due to 17–23 mph winds), returns Spinosad (IRAC 5) + Bt-k + early-planting + the line "all days are marginal or poor due to high winds and/or rain — wait for favorable conditions." 8.5s end-to-end.*
 
-### v0.5 — *It streams live*
-- SSE on `/app/scout/new`: pest IDs stream in as Qwen returns them
-- Multi-photo flow; confidence handling + `scout_again` fallback
+### v0.5 — *It streams live* ✅ shipped 2026-05-29
+- SSE on `/api/stream/scouts/:id`: `photo_uploaded`, `id_ready`, `recommendation_ready`, `scout_complete` events stream as Qwen returns each photo
+- Multi-photo upload flow — parallel uploads, per-photo cards land independently
+- Confidence handling: top < 0.55 → recommender short-circuits to `scout_again` (no LLM call), < 0.75 → yellow `low_confidence` UI badge
+- Kansas Mesonet wired — ground-truth observations from the nearest of ~30 KSU stations when a field is within 25 km
+- MapLibre field map (OSM raster tiles) — click to set centroid → `PATCH /api/fields/:id`
 
-*Exit: the hero GIF — four pest IDs landing in ~6 seconds.*
+*Exit: full lifecycle for a 4-photo scout streams over a single SSE connection; low-confidence path returns concrete next-photo guidance in <100ms (no LLM round-trip).*
 
 ### v1.0 — *Launch*
 - Deployed at `app.whorl.app` via systemd + Caddy on IONOS VPS Linux L

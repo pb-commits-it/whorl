@@ -87,4 +87,4 @@ def test_health_endpoint(client: TestClient):
     assert resp.status_code == 200
     body = resp.json()
     assert body["status"] == "ok"
-    assert body["version"] == "0.4.0"
+    assert body["version"] == "0.5.0"

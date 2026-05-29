@@ -40,6 +40,7 @@ function safeJSON(t: string): any {
 export const api = {
   get: <T>(path: string) => request<T>("GET", path),
   post: <T>(path: string, body?: unknown) => request<T>("POST", path, body),
+  patch: <T>(path: string, body?: unknown) => request<T>("PATCH", path, body),
 };
 
 // ---- types reused across components ----
@@ -200,4 +201,40 @@ export interface FieldWeather {
   fetched_at: string | null;
   forecasts: DailyForecast[];
   spray_windows: SprayWindowDay[];
+}
+
+// v0.5 SSE event shapes
+export interface StreamPhotoUploaded {
+  scout_id: string;
+  thumb_path: string;
+  sha256: string;
+}
+export interface StreamIdReady {
+  scout_id: string;
+  photo_id: string;
+  thumb_path: string;
+  candidates: Array<{
+    scientific_name: string;
+    common_name: string;
+    lifecycle_stage: string;
+    confidence: number;
+    visible_features: string[];
+    evidence: string;
+  }>;
+  image_quality: string;
+  top_confidence: number;
+  low_confidence: boolean;
+  needs_rescout: boolean;
+}
+export interface StreamRecommendationReady {
+  scout_id: string;
+  recommendation_id: string;
+  action: string;
+  pest_focus: string;
+  confidence: string;
+}
+export interface StreamScoutComplete {
+  scout_id: string;
+  summary: string;
+  latency_ms: number;
 }

@@ -138,6 +138,58 @@ async def test_full_recommend_flow(auth_client: TestClient, jpeg_bytes):
 
 
 @respx.mock
+async def test_low_confidence_triggers_scout_again(auth_client: TestClient, jpeg_bytes):
+    """v0.5 — top ID < 0.55 confidence → deterministic scout_again, no LLM call."""
+    low_conf_vision = {
+        "choices": [{"message": {"content": json.dumps({
+            "candidates": [{
+                "scientific_name": "Unknown sp.",
+                "common_name": "",
+                "lifecycle_stage": "unknown",
+                "confidence": 0.40,
+                "visible_features": [],
+                "evidence": "damage_only",
+            }],
+            "image_quality": "marginal",
+            "notes": "",
+        })}}]
+    }
+
+    # Vision returns low-confidence; embedding + recommend should NOT be called.
+    embed_route = respx.post(EMBED_URL).mock(return_value=httpx.Response(200, json=_embedding_response(1)))
+
+    def _route(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        user_msg = body["messages"][-1]["content"]
+        if isinstance(user_msg, list):
+            return httpx.Response(200, json=low_conf_vision)
+        # Recommendation text call should never fire on this path.
+        raise AssertionError("low-confidence path should not call the LLM recommender")
+    respx.post(OPENROUTER_URL).mock(side_effect=_route)
+
+    farm = auth_client.post("/api/farms", json={"name": "Demo"}).json()
+    field = auth_client.post(
+        f"/api/farms/{farm['id']}/fields", json={"name": "F1", "crop": "corn"},
+    ).json()
+    scout = auth_client.post("/api/scouts", json={"field_id": field["id"]}).json()
+    r = auth_client.post(
+        "/api/photos",
+        files={"file": ("p.jpg", jpeg_bytes, "image/jpeg")},
+        data={"scout_id": scout["id"]},
+    )
+    assert r.status_code == 200, r.text
+
+    r = auth_client.post(f"/api/scouts/{scout['id']}/recommend")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["result"]["action"] == "scout_again"
+    assert body["result"]["confidence"] == "low"
+    assert "55" in body["result"]["threshold_context"] or "0.55" in body["result"]["threshold_context"]
+    assert body["model_used"] == "rescout-fallback"
+    assert not embed_route.called, "embeddings should not be called on the scout_again shortcut"
+
+
+@respx.mock
 async def test_recommend_requires_at_least_one_identification(
     auth_client: TestClient,
 ):
