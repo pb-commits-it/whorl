@@ -14,11 +14,13 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from whorl import __version__
 from whorl.config import Settings, get_settings
 from whorl.db import init_db, make_engine, make_session_factory
+from whorl.routes import applications as application_routes
 from whorl.routes import auth as auth_routes
 from whorl.routes import farms as farm_routes
 from whorl.routes import health as health_routes
 from whorl.routes import me as me_routes
 from whorl.routes import photos as photo_routes
+from whorl.routes import recommend as recommend_routes
 from whorl.routes import scouts as scout_routes
 from whorl.storage.photos import LocalDiskStore
 
@@ -82,6 +84,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(farm_routes.router)
     app.include_router(scout_routes.router)
     app.include_router(photo_routes.router)
+    app.include_router(application_routes.router)
+    app.include_router(recommend_routes.router)
 
     assets_dir = WEB_DIR / "assets"
     if assets_dir.is_dir():

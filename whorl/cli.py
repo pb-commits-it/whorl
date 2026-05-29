@@ -1,8 +1,9 @@
-"""whorl CLI — `whorl up` runs the dev server."""
+"""whorl CLI — `whorl up` runs the dev server; `whorl kb ingest` (re)builds the wiki."""
 
 from __future__ import annotations
 
 import argparse
+import asyncio
 
 import uvicorn
 
@@ -23,8 +24,26 @@ def main(argv: list[str] | None = None) -> None:
     up.add_argument("--host", default="127.0.0.1")
     up.add_argument("--port", type=int, default=None)
 
+    kb = sub.add_parser("kb", help="Knowledge-base maintenance commands.")
+    kb_sub = kb.add_subparsers(dest="kb_command")
+    kb_ingest = kb_sub.add_parser(
+        "ingest", help="(Re)load the markdown wiki into the kb_chunks table."
+    )
+    kb_ingest.add_argument(
+        "--database-url",
+        default=None,
+        help="Override Settings.database_url (defaults to the configured Postgres).",
+    )
+
     args = parser.parse_args(argv)
 
+    if args.command == "kb" and args.kb_command == "ingest":
+        from whorl.kb.ingest import main as kb_main
+
+        asyncio.run(kb_main(database_url=args.database_url))
+        return
+
+    # Default behavior: `whorl up` (no subcommand also runs the server).
     settings = get_settings()
     host = getattr(args, "host", "127.0.0.1")
     port = getattr(args, "port", None) or settings.whorl_port

@@ -106,3 +106,70 @@ export interface ScoutDetail {
   scout: Scout;
   photos: PhotoWithIds[];
 }
+
+export interface Application {
+  id: string;
+  field_id: string;
+  applied_at: string;
+  pest_target: string | null;
+  product_name: string;
+  active_ingredient: string | null;
+  moa_class: "IRAC" | "FRAC" | "HRAC" | null;
+  moa_group: string | null;
+  rate: string | null;
+  units: string | null;
+  rei_hours: number | null;
+  phi_days: number | null;
+  outcome: string | null;
+  notes: string | null;
+}
+
+export interface SprayWindow {
+  open: string;
+  close: string;
+  reason: string;
+}
+
+export interface ChemicalRec {
+  product: string;
+  active_ingredient: string;
+  moa_class: "IRAC" | "FRAC" | "HRAC";
+  moa_group: string;
+  rotation_rationale: string;
+  rei_hours: number;
+  phi_days: number;
+}
+
+export interface AltControl {
+  category: "biological" | "cultural" | "mechanical";
+  name: string;
+  summary: string;
+  kb_link: string;
+}
+
+export interface RecCitation {
+  chunk_id: number;
+  quote: string;
+}
+
+export interface RecResult {
+  action: "no_action" | "monitor" | "scout_again" | "treat";
+  pest_focus: string;
+  threshold_context: string;
+  spray_window: SprayWindow | null;
+  chemical: ChemicalRec | null;
+  alternatives: AltControl[];
+  plain_english: string;
+  confidence: "high" | "medium" | "low";
+  citations: RecCitation[];
+}
+
+export interface RecResponse {
+  id: string;
+  scout_id: string;
+  result: RecResult;
+  model_used: string;
+  prompt_version: string;
+  latency_ms: number;
+  created_at: string;
+}
