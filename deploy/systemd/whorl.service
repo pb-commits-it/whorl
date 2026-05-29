@@ -1,0 +1,44 @@
+[Unit]
+Description=whorl — open-source crop scouting dashboard
+After=network-online.target docker.service
+Requires=docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=whorl
+Group=whorl
+WorkingDirectory=/opt/whorl
+EnvironmentFile=/opt/whorl/.env
+Environment=PYTHONUNBUFFERED=1
+Environment=WHORL_PHOTO_DIR=/var/lib/whorl/photos
+
+# Bind to localhost — Caddy is the only thing reverse-proxying us. If you ever
+# want external direct access, change to 0.0.0.0 and put a firewall in front.
+ExecStart=/opt/whorl/.venv/bin/uvicorn whorl.app:app \
+    --host 127.0.0.1 \
+    --port 8010 \
+    --proxy-headers \
+    --forwarded-allow-ips=127.0.0.1
+
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=20
+
+# Don't let a runaway Python process eat the box.
+LimitNOFILE=65536
+MemoryHigh=2G
+MemoryMax=4G
+
+StandardOutput=journal
+StandardError=journal
+
+# Hardening — uvicorn doesn't need ambient privileges.
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/whorl /opt/whorl/photos
+
+[Install]
+WantedBy=multi-user.target

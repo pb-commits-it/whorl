@@ -23,6 +23,7 @@ from whorl.routes import photos as photo_routes
 from whorl.routes import recommend as recommend_routes
 from whorl.routes import scouts as scout_routes
 from whorl.routes import stream as stream_routes
+from whorl.routes import waitlist as waitlist_routes
 from whorl.routes import weather as weather_routes
 from whorl.storage.photos import LocalDiskStore
 from whorl.stream.hub import LiveHub
@@ -92,6 +93,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(recommend_routes.router)
     app.include_router(weather_routes.router)
     app.include_router(stream_routes.router)
+    app.include_router(waitlist_routes.router)
 
     assets_dir = WEB_DIR / "assets"
     if assets_dir.is_dir():

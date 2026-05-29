@@ -1,0 +1,53 @@
+{
+    # Set this once on the VM. Caddy will request a TLS cert from Let's Encrypt
+    # using the email below.
+    email pb-commits-it@noreply.github.com
+}
+
+# ─── Apex: marketing landing page (static) ──────────────────────────────────
+whorl.app, www.whorl.app {
+    root * /opt/whorl/marketing
+    file_server
+    encode zstd gzip
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        Referrer-Policy "no-referrer"
+        X-Content-Type-Options "nosniff"
+        Cross-Origin-Opener-Policy "same-origin"
+    }
+
+    @waitlist path /api/waitlist
+    handle @waitlist {
+        reverse_proxy 127.0.0.1:8010
+    }
+
+    # Catch-all redirect for unknown apex paths goes home.
+    handle_errors {
+        @404 expression {http.error.status_code} == 404
+        rewrite @404 /index.html
+        file_server
+    }
+}
+
+# ─── App: the dashboard (FastAPI/uvicorn behind reverse proxy) ──────────────
+app.whorl.app {
+    reverse_proxy 127.0.0.1:8010 {
+        # SSE needs unbuffered streaming + long read timeouts. /api/stream/*
+        # holds connections open for the full scout lifecycle.
+        flush_interval -1
+        transport http {
+            read_timeout 24h
+        }
+    }
+    encode zstd gzip
+    request_body {
+        # Field photos — 25 MB ceiling lines up with typical phone HEIC/JPEG.
+        max_size 25MB
+    }
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        Referrer-Policy "no-referrer"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+    }
+}

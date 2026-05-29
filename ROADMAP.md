@@ -49,9 +49,13 @@ The pipe end to end.
 
 *Exit: full lifecycle for a 4-photo scout streams over a single SSE connection; low-confidence path returns concrete next-photo guidance in <100ms (no LLM round-trip).*
 
-### v1.0 — *Launch*
-- Deployed at `app.whorl.app` via systemd + Caddy on IONOS VPS Linux L
-- Seeded demo org for the demo video
-- 60s demo video + LinkedIn launch post + Show HN
+### v1.0 — *Launch* ✅ shipped 2026-05-29
+- **Deploy infra:** `deploy/install.sh` (idempotent Ubuntu/Debian installer for an IONOS VPS) + four systemd units (`whorl.service`, `whorl-weather.{service,timer}` daily 04:00, `whorl-backup.{service,timer}` nightly 03:00 → restic + Backblaze B2) + `Caddyfile` with TLS, SSE-aware reverse proxy (`flush_interval -1`, 24h read timeout), 25 MB body limit, HSTS+Referrer-Policy headers
+- **CLI:** `whorl weather sync` walks every field with a centroid and refreshes the 7-day forecast; idempotent
+- **Marketing site:** single-file `marketing/index.html` for the apex (`whorl.app`), Caddy serves it directly. Hero + demo strip + three pillars + a working `<form>` POSTing to `/api/waitlist`
+- **Waitlist:** `WaitlistEntry` model + `POST /api/waitlist` (no auth, idempotent, lower-cases emails, captures user-agent + forwarded IP)
+- **Seed demo:** `scripts/seed_demo.py` materializes `demo@whorl.app` (farmer), one farm (Hartman Family Farm), one corn field at Manhattan-KS coordinates (so Mesonet kicks in), and a 14-day-old IRAC 3A bifenthrin application — exactly the configuration the README hero scout uses
+
+*Exit: a fresh VM is one `bash deploy/install.sh` away from serving both `https://whorl.app` (marketing + waitlist) and `https://app.whorl.app` (dashboard) over TLS, with nightly weather sync and nightly Postgres + photos backups to Backblaze B2.*
 
 *Exit: anyone can sign up at whorl.app, drop a phone photo, and act on a real recommendation.*

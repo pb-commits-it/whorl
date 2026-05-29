@@ -1,0 +1,15 @@
+[Unit]
+Description=whorl — nightly Postgres + photos backup to Backblaze B2
+After=network-online.target whorl-postgres.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=whorl
+Group=whorl
+WorkingDirectory=/opt/whorl
+EnvironmentFile=/opt/whorl/.env
+ExecStart=/opt/whorl/deploy/backup.sh
+
+StandardOutput=journal
+StandardError=journal

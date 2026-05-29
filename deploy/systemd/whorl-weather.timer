@@ -1,0 +1,15 @@
+[Unit]
+Description=Daily whorl weather sync (04:00 local)
+Documentation=https://github.com/pb-commits-it/whorl
+
+[Timer]
+# 04:00 local — well before farmers walk fields, well after NWS midnight
+# updates have settled. RandomizedDelaySec dodges hourly thundering-herd
+# patterns against the public NWS API.
+OnCalendar=*-*-* 04:00:00
+RandomizedDelaySec=10m
+Persistent=true
+Unit=whorl-weather.service
+
+[Install]
+WantedBy=timers.target

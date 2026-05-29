@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Whorl — open-source crop scouting for Midwest farmers</title>
+<meta name="description" content="Drop a phone photo of a pest. Get a cited recommendation in 30 seconds. MOA-rotation-aware, REI/PHI-respecting, regional thresholds cited to KSU extension. AGPL-3.0. Built by an entomologist.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='28'%3E🌽%3C/text%3E%3C/svg%3E">
+<meta property="og:title" content="Whorl — open-source crop scouting">
+<meta property="og:description" content="Photo of a pest in. Cited recommendation out. Under 30 seconds. AGPL-3.0.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://whorl.app">
+<style>
+:root {
+  --bg: #0a0e14;
+  --panel: #141b29;
+  --panel-2: #1c2435;
+  --text: #c9d4e5;
+  --muted: #6f7d96;
+  --accent: #38bdf8;
+  --good: #4ade80;
+  --warn: #fbbf24;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+.wrap { max-width: 920px; margin: 0 auto; padding: 0 24px; }
+
+/* ── nav ── */
+nav {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 22px 0; border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+nav .brand { font-weight: 700; font-size: 17px; }
+nav .brand .emoji { margin-right: 6px; }
+nav .links a { margin-left: 22px; font-size: 14px; color: var(--muted); }
+nav .links a:hover { color: var(--text); }
+
+/* ── hero ── */
+.hero { padding: 80px 0 60px; text-align: left; }
+.hero h1 {
+  font-size: clamp(38px, 6vw, 60px); line-height: 1.05; margin: 0 0 18px;
+  letter-spacing: -0.025em; font-weight: 800;
+}
+.hero h1 .accent { color: var(--accent); }
+.hero p.sub {
+  font-size: clamp(17px, 2vw, 20px); color: var(--text); max-width: 640px;
+  margin: 0 0 28px;
+}
+.hero .cta {
+  display: inline-block; background: var(--accent); color: #061018;
+  font-weight: 700; padding: 13px 22px; border-radius: 8px; font-size: 15px;
+}
+.hero .cta:hover { text-decoration: none; opacity: 0.92; }
+.hero .secondary {
+  margin-left: 14px; color: var(--text); font-size: 14px;
+}
+.badges { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 22px; }
+.badges span {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11px;
+  padding: 4px 10px; border-radius: 4px; color: var(--muted);
+  border: 1px solid rgba(255,255,255,0.08);
+}
+
+/* ── demo strip ── */
+.demo {
+  background: var(--panel); border: 1px solid rgba(255,255,255,0.05);
+  border-radius: 14px; padding: 24px; margin: 14px 0 56px;
+  font-family: ui-monospace, monospace; font-size: 13px; line-height: 1.7;
+}
+.demo .e { display: flex; gap: 10px; align-items: flex-start; }
+.demo .e .tag {
+  font-size: 9.5px; text-transform: uppercase; letter-spacing: 1.4px;
+  padding: 2px 7px; border-radius: 4px; font-weight: 700;
+  background: rgba(56,189,248,0.14); color: var(--accent);
+  min-width: 60px; text-align: center; margin-top: 3px;
+}
+.demo .e.id .tag  { background: rgba(167,139,250,0.14); color: #a78bfa; }
+.demo .e.rec .tag { background: rgba(34,197,94,0.14);  color: var(--good); }
+.demo .e.cite .tag{ background: rgba(251,191,36,0.14); color: var(--warn); }
+.demo .conf { margin-left: auto; color: var(--accent); font-weight: 700; }
+
+/* ── pillars ── */
+.pillars { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 22px; margin: 0 0 70px; }
+.pillar h3 {
+  font-size: 12px; text-transform: uppercase; letter-spacing: 1.3px;
+  color: var(--muted); margin: 0 0 10px; font-weight: 700;
+}
+.pillar p { margin: 0; font-size: 14.5px; }
+@media (max-width: 700px) { .pillars { grid-template-columns: 1fr; gap: 16px; } }
+
+/* ── how it works ── */
+.how { margin-bottom: 70px; }
+.how h2 { font-size: 22px; margin: 0 0 22px; font-weight: 700; }
+.how ol { padding-left: 18px; margin: 0; }
+.how li { margin-bottom: 12px; font-size: 15px; }
+.how code {
+  background: var(--panel-2); padding: 1px 7px; border-radius: 4px;
+  color: var(--accent); font-size: 12.5px;
+}
+
+/* ── footer ── */
+footer {
+  border-top: 1px solid rgba(255,255,255,0.04); padding: 36px 0 48px;
+  color: var(--muted); font-size: 13px;
+}
+footer .row { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 16px; }
+.waitlist { display: flex; gap: 10px; max-width: 520px; margin-top: 14px; }
+.waitlist input {
+  flex: 1; padding: 11px 14px; border-radius: 6px;
+  border: 1px solid rgba(255,255,255,0.1); background: var(--panel-2);
+  color: var(--text); font-size: 14px; font-family: inherit;
+}
+.waitlist input:focus { outline: 1px solid var(--accent); }
+.waitlist button {
+  background: var(--accent); color: #061018; border: 0;
+  padding: 11px 18px; border-radius: 6px; font-weight: 700; cursor: pointer;
+}
+#waitlist-status { font-size: 13px; margin-top: 8px; min-height: 18px; }
+#waitlist-status.ok { color: var(--good); }
+#waitlist-status.err { color: #f87171; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<nav>
+  <div class="brand"><span class="emoji">🌽</span>whorl</div>
+  <div class="links">
+    <a href="https://github.com/pb-commits-it/whorl">GitHub</a>
+    <a href="https://app.whorl.app">App</a>
+    <a href="#how">How it works</a>
+  </div>
+</nav>
+
+<section class="hero">
+  <h1>Crop scouting,<br><span class="accent">cited to extension.</span></h1>
+  <p class="sub">
+    Drop a phone photo of a pest. Get a scientific ID, the regional economic
+    threshold, an MOA-rotation-aware recommendation, REI/PHI, biological
+    alternatives, and the spray window — in under 30 seconds. Open source.
+    Built by a PhD entomologist.
+  </p>
+  <a class="cta" href="https://app.whorl.app">Try the app →</a>
+  <a class="secondary" href="https://github.com/pb-commits-it/whorl">Read the code</a>
+  <div class="badges">
+    <span>AGPL-3.0</span>
+    <span>Self-hostable</span>
+    <span>$14/mo VPS</span>
+    <span>KSU MF742–MF810</span>
+    <span>IRAC v11.1 · FRAC 2024 · HRAC</span>
+    <span>EPA PPLS</span>
+  </div>
+</section>
+
+<section class="demo" aria-label="Example output">
+  <div class="e"><span class="tag">photo</span>uploaded · field=North 80 (corn)</div>
+  <div class="e id"><span class="tag">id</span><b>Helicoverpa zea</b> (corn earworm) · larva<span class="conf">95%</span></div>
+  <div class="e rec"><span class="tag">rec</span><b>treat</b> · Spinosad (IRAC&nbsp;5) · REI&nbsp;4&nbsp;h · PHI&nbsp;1&nbsp;d</div>
+  <div class="e cite"><span class="tag">why</span>Rotating off IRAC&nbsp;3A bifenthrin applied 14 d ago · KSU MF743 p.12 · 1 larva/ear @ silking</div>
+  <div class="e"><span class="tag">also</span>Bt&nbsp;kurstaki (biological), early planting (cultural)</div>
+  <div class="e"><span class="tag">when</span>Don't spray Thursday — 18 mph winds, ≥15 mph drift risk</div>
+  <div class="e"><span class="tag">done</span>scout complete · 8.5 s</div>
+</section>
+
+<section class="pillars">
+  <div class="pillar">
+    <h3>Cited, not hallucinated</h3>
+    <p>Every claim resolves to a paragraph in an LLM-curated wiki built from KSU extension, IRAC, FRAC, HRAC, EPA PPLS, Cornell biocontrol, and ATTRA.</p>
+  </div>
+  <div class="pillar">
+    <h3>Resistance-aware</h3>
+    <p>Reads your last-90-day spray history. Forces a different MOA group from the most recent same-pest application. Always surfaces a non-chemical alternative.</p>
+  </div>
+  <div class="pillar">
+    <h3>Built in public</h3>
+    <p>AGPL-3.0. Self-hostable on a $14/mo VPS. v0.1 → v1.0 staged release log on <a href="https://github.com/pb-commits-it/whorl">GitHub</a>. Issues + PRs welcome.</p>
+  </div>
+</section>
+
+<section class="how" id="how">
+  <h2>How it works</h2>
+  <ol>
+    <li>Sign in with a magic link (no password). Add your farms and fields.</li>
+    <li>Walk a field. Drop phone photos into the dropzone. Pest IDs stream in over a few seconds via SSE.</li>
+    <li>The recommender pulls your last 90 d of <code>applications</code>, the local 7-day spray window, and the top-5 wiki chunks per pest × crop × region, then runs Qwen3-VL with strict-JSON output enforcing MOA rotation + REI/PHI citation.</li>
+    <li>You get one plain-English sentence a farmer can act on today, plus the structured fields a consultant would write up.</li>
+  </ol>
+</section>
+
+<footer>
+  <div class="row">
+    <div>
+      <div><strong>whorl</strong> — built by Paul Bergeron · PhD entomology + AI engineer · Wichita, KS</div>
+      <div style="margin-top:6px"><a href="https://github.com/pb-commits-it/whorl">github.com/pb-commits-it/whorl</a> · AGPL-3.0</div>
+    </div>
+    <div style="min-width:300px">
+      <strong>Get release-day updates</strong>
+      <form class="waitlist" onsubmit="return joinWaitlist(event)">
+        <input id="waitlist-email" type="email" required placeholder="you@farm.example">
+        <button type="submit">Notify me</button>
+      </form>
+      <div id="waitlist-status"></div>
+    </div>
+  </div>
+</footer>
+
+</div>
+<script>
+async function joinWaitlist(ev) {
+  ev.preventDefault();
+  const email = document.getElementById("waitlist-email").value;
+  const status = document.getElementById("waitlist-status");
+  status.textContent = "…";
+  status.className = "";
+  try {
+    const r = await fetch("/api/waitlist", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email })
+    });
+    if (!r.ok) {
+      const j = await r.json().catch(() => ({}));
+      throw new Error(j.detail || r.statusText);
+    }
+    status.textContent = "✓ you're on the list. release notes will land in your inbox.";
+    status.className = "ok";
+    document.getElementById("waitlist-email").value = "";
+  } catch (e) {
+    status.textContent = "couldn't subscribe — " + e.message;
+    status.className = "err";
+  }
+  return false;
+}
+</script>
+</body>
+</html>

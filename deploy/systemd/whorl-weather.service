@@ -1,0 +1,19 @@
+[Unit]
+Description=whorl — daily weather pre-fetch for all fields
+After=network-online.target whorl.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=whorl
+Group=whorl
+WorkingDirectory=/opt/whorl
+EnvironmentFile=/opt/whorl/.env
+Environment=PYTHONUNBUFFERED=1
+
+# Each field's forecast is fetched from NWS + OpenMeteo (+ Mesonet when in
+# range) and cached in field_weather. Idempotent; safe to retry.
+ExecStart=/opt/whorl/.venv/bin/whorl weather sync
+
+StandardOutput=journal
+StandardError=journal

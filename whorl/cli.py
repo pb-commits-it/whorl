@@ -35,12 +35,25 @@ def main(argv: list[str] | None = None) -> None:
         help="Override Settings.database_url (defaults to the configured Postgres).",
     )
 
+    weather = sub.add_parser("weather", help="Weather pipeline commands.")
+    weather_sub = weather.add_subparsers(dest="weather_command")
+    weather_sub.add_parser(
+        "sync",
+        help="Pre-fetch every field's forecast (run nightly by whorl-weather.timer).",
+    )
+
     args = parser.parse_args(argv)
 
     if args.command == "kb" and args.kb_command == "ingest":
         from whorl.kb.ingest import main as kb_main
 
         asyncio.run(kb_main(database_url=args.database_url))
+        return
+
+    if args.command == "weather" and args.weather_command == "sync":
+        from whorl.weather.sync import sync_all_fields
+
+        asyncio.run(sync_all_fields())
         return
 
     # Default behavior: `whorl up` (no subcommand also runs the server).
