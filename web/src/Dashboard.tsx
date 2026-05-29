@@ -5,6 +5,7 @@ import {
   type Application,
   type Farm,
   type Field,
+  type FieldWeather,
   type Me,
   type PhotoWithIds,
   type RecResponse,
@@ -265,6 +266,8 @@ function FieldView(p: FieldViewProps) {
         <button className="primary" onClick={p.onStartScout}>+ new scout</button>
       </div>
 
+      <WeatherStrip field={p.field} />
+
       <ApplicationsPanel
         field={p.field}
         applications={p.applications}
@@ -301,6 +304,96 @@ function FieldView(p: FieldViewProps) {
         />
       )}
     </div>
+  );
+}
+
+function WeatherStrip({ field }: { field: Field }) {
+  const [data, setData] = useState<FieldWeather | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const load = useCallback(async (force: boolean) => {
+    setLoading(true);
+    setErr(null);
+    try {
+      const qs = force ? "?refresh=true" : "";
+      const w = await api.get<FieldWeather>(`/api/fields/${field.id}/weather${qs}`);
+      setData(w);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "weather fetch failed");
+    } finally {
+      setLoading(false);
+    }
+  }, [field.id]);
+
+  useEffect(() => { setData(null); load(false); }, [field.id, load]);
+
+  if (loading && !data) {
+    return <section className="weather-strip"><div className="muted">loading forecast…</div></section>;
+  }
+  if (err) {
+    return (
+      <section className="weather-strip">
+        <div className="weather-head">
+          <h2>spray window forecast</h2>
+          <button className="ghost small" onClick={() => load(true)}>retry</button>
+        </div>
+        <div className="error inline">{err}</div>
+      </section>
+    );
+  }
+  if (!data || data.spray_windows.length === 0) {
+    return (
+      <section className="weather-strip">
+        <div className="weather-head">
+          <h2>spray window forecast</h2>
+          <button className="ghost small" onClick={() => load(true)}>refresh</button>
+        </div>
+        <div className="muted">No forecast available right now.</div>
+      </section>
+    );
+  }
+
+  const fetchedNote = data.fetched_at
+    ? `updated ${new Date(data.fetched_at).toLocaleTimeString()}`
+    : null;
+
+  return (
+    <section className="weather-strip">
+      <div className="weather-head">
+        <h2>spray window forecast</h2>
+        <div className="weather-meta muted">
+          {data.coords.is_default ? "central KS default" : `${data.coords.lat.toFixed(3)}, ${data.coords.lon.toFixed(3)}`}
+          {fetchedNote ? ` · ${fetchedNote}` : ""}
+          <button className="ghost small" onClick={() => load(true)} disabled={loading}>
+            {loading ? "…" : "refresh"}
+          </button>
+        </div>
+      </div>
+      <ul className="weather-days">
+        {data.spray_windows.map((d) => {
+          const fc = data.forecasts.find((f) => f.date === d.date);
+          return (
+            <li key={d.date} className={`weather-day ${d.label}`} title={d.reason}>
+              <div className="day-name">{new Date(d.date + "T12:00").toLocaleDateString(undefined, { weekday: "short" })}</div>
+              <div className="day-temp">
+                {fc?.t_high_f != null ? `${Math.round(fc.t_high_f)}°` : "—"}
+                <span className="muted">
+                  {fc?.t_low_f != null ? ` / ${Math.round(fc.t_low_f)}°` : ""}
+                </span>
+              </div>
+              <div className="day-wind">
+                {d.wind_mph != null ? `${Math.round(d.wind_mph)} mph` : "—"}
+              </div>
+              <div className="day-rain">
+                {d.rain_probability != null ? `${Math.round(d.rain_probability * 100)}% rain` : ""}
+              </div>
+              <div className={`label-pill ${d.label}`}>{d.label}</div>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }
 

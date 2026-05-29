@@ -6,12 +6,14 @@ from whorl.models.kb import KBChunk, KBSource
 from whorl.models.org import AuthToken, Organization, User
 from whorl.models.recommendation import Recommendation
 from whorl.models.scout import Identification, Photo, Scout
+from whorl.models.weather import FieldWeather
 
 __all__ = [
     "Application",
     "AuthToken",
     "Farm",
     "Field",
+    "FieldWeather",
     "Identification",
     "KBChunk",
     "KBSource",

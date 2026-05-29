@@ -19,6 +19,7 @@ from whorl.kb.rag import retrieve_wiki
 from whorl.models import Application, Field, Identification, KBChunk, Photo, Scout
 from whorl.pipeline.vision import OPENROUTER_URL
 from whorl.schemas.recommend import RecommendationResult
+from whorl.weather.service import forecast_for_field, spray_windows
 
 if TYPE_CHECKING:
     from whorl.config import Settings
@@ -35,6 +36,8 @@ Given:
   (b) the field's crop and state,
   (c) numbered excerpts from the regional pest/crop wiki — each with a [N] marker,
   (d) the field's RECENT APPLICATION HISTORY (last 5 sprays with MOA groups + dates),
+  (e) a SPRAY-WINDOW FORECAST (7 days of wind + rain-probability with a
+      good/marginal/poor label per day),
 produce ONE plain-English recommendation a farmer can act on today plus
 structured fields.
 
@@ -53,6 +56,11 @@ Rules you MUST follow:
   5. If the excerpts do not support a confident recommendation, set
      action="scout_again" and describe what evidence is missing in
      plain_english.
+  6. If you recommend treatment, the `spray_window.open` and `spray_window.close`
+     dates MUST be drawn from days labeled "good" in the SPRAY-WINDOW FORECAST.
+     `spray_window.reason` should quote the actual wind / rain reasoning from
+     the forecast (e.g. "winds 6 mph, rain 10%"). If no good window exists in
+     the 7-day forecast, set spray_window to null and explain in plain_english.
 
 Return STRICT JSON conforming to this schema and NOTHING ELSE — no markdown,
 no code fences:
@@ -88,6 +96,7 @@ def _build_context(
     idents: list[Identification],
     chunks: list[KBChunk],
     recent_apps: list[Application],
+    spray_window_rows: list,
 ) -> str:
     parts: list[str] = []
     parts.append(
@@ -113,6 +122,13 @@ def _build_context(
             )
     else:
         parts.append("  (none recorded)")
+
+    parts.append("\nSPRAY-WINDOW FORECAST (next 7 days):")
+    if spray_window_rows:
+        for w in spray_window_rows:
+            parts.append(f"  · {w.date}: {w.label.upper():<8} — {w.reason}")
+    else:
+        parts.append("  (no forecast data — recommender should default to a conservative window)")
 
     parts.append("\nWIKI EXCERPTS — cite by [N]:")
     for n, c in enumerate(chunks, 1):
@@ -233,7 +249,15 @@ async def generate_recommendation(
     if not chunks:
         raise ValueError("knowledge base is empty — run `whorl kb ingest` first")
 
-    context_text = _build_context(field, all_ids, chunks, recent_apps)
+    # Weather window — best-effort; we proceed without it on provider failures.
+    try:
+        weather_rows = await forecast_for_field(session, field, days=7)
+        windows = spray_windows(weather_rows, days=7)
+    except Exception as exc:   # noqa: BLE001
+        log.warning("weather fetch failed for field %s: %s", field.id, exc)
+        windows = []
+
+    context_text = _build_context(field, all_ids, chunks, recent_apps, windows)
     result, model_used = await _call_recommender(context_text, settings)
     latency_ms = int((time.monotonic() - t0) * 1000)
     return result, model_used, latency_ms

@@ -22,6 +22,7 @@ from whorl.routes import me as me_routes
 from whorl.routes import photos as photo_routes
 from whorl.routes import recommend as recommend_routes
 from whorl.routes import scouts as scout_routes
+from whorl.routes import weather as weather_routes
 from whorl.storage.photos import LocalDiskStore
 
 _PKG = Path(__file__).parent
@@ -86,6 +87,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(photo_routes.router)
     app.include_router(application_routes.router)
     app.include_router(recommend_routes.router)
+    app.include_router(weather_routes.router)
 
     assets_dir = WEB_DIR / "assets"
     if assets_dir.is_dir():

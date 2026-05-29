@@ -173,3 +173,31 @@ export interface RecResponse {
   latency_ms: number;
   created_at: string;
 }
+
+export interface DailyForecast {
+  date: string;
+  provider: string;
+  t_high_f: number | null;
+  t_low_f: number | null;
+  rain_in: number | null;
+  rain_probability: number | null;
+  wind_mph: number | null;
+  wind_gust_mph: number | null;
+  humidity_pct: number | null;
+}
+
+export interface SprayWindowDay {
+  date: string;
+  label: "good" | "marginal" | "poor";
+  wind_mph: number | null;
+  rain_probability: number | null;
+  reason: string;
+}
+
+export interface FieldWeather {
+  field_id: string;
+  coords: { lat: number; lon: number; is_default: boolean };
+  fetched_at: string | null;
+  forecasts: DailyForecast[];
+  spray_windows: SprayWindowDay[];
+}
